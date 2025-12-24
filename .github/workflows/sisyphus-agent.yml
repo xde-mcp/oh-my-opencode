@@ -46,11 +46,31 @@ jobs:
           echo "${{ secrets.GH_PAT }}" | gh auth login --with-token
           gh auth status
 
-      # Install Bun
+      # Install Bun with caching
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Cache OpenCode
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.opencode
+            ~/.config/opencode
+          key: ${{ runner.os }}-opencode-${{ hashFiles('.github/workflows/sisyphus-agent.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-opencode-
 
       # Install OpenCode + oh-my-opencode + auth in single step
       - name: Setup OpenCode with oh-my-opencode
@@ -130,31 +150,111 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          CONTEXT_TYPE: ${{ steps.context.outputs.type }}
+          CONTEXT_NUMBER: ${{ steps.context.outputs.number }}
+          CONTEXT_AUTHOR: ${{ steps.context.outputs.author }}
+          CONTEXT_COMMENT: ${{ steps.context.outputs.comment }}
+          REPO_NAME: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           export PATH="$HOME/.opencode/bin:$PATH"
           
-          PROMPT="You are sisyphus-dev-ai, an AI coding agent.
+          cat > /tmp/agent-prompt.md << 'PROMPT_EOF'
+          ulw
+
+          You are sisyphus-dev-ai. You've been mentioned by @AUTHOR_PLACEHOLDER in REPO_PLACEHOLDER.
+          Find out what's happening and satisfy the user's request.
 
           ## Context
-          Type: ${{ steps.context.outputs.type }}
-          Number: #${{ steps.context.outputs.number }}
-          
-          ## User Request
-          @${{ steps.context.outputs.author }} says:
-          ${{ steps.context.outputs.comment }}
-          
-          ## Instructions
-          1. Read the full context using gh cli
-          2. Process the request
-          3. If code changes needed, make them and push
-          4. Communicate via gh cli comments
-          
-          ## Git Config
-          Already configured:
+          - Type: TYPE_PLACEHOLDER (issue or pr)
+          - Number: #NUMBER_PLACEHOLDER
+          - Repository: REPO_PLACEHOLDER
+
+          ## User's Message
+          COMMENT_PLACEHOLDER
+
+          ---
+
+          ## CRITICAL: GitHub Comments Are Your ONLY Output
+
+          **The user CANNOT see your console output.** They can ONLY see GitHub comments.
+          Every response, every update, every result MUST be posted as a GitHub comment.
+
+          ## Workflow
+
+          ### 1. Acknowledge IMMEDIATELY
+          ```bash
+          gh issue comment NUMBER_PLACEHOLDER --body "👋 Hey @AUTHOR_PLACEHOLDER! I'm on it. Let me check this out..."
+          ```
+
+          ### 2. Setup Dev Environment
+          ```bash
+          bun install
+          bun run typecheck
+          ```
+
+          ### 3. Investigate
+          - Read context: `gh issue view NUMBER_PLACEHOLDER` or `gh pr view NUMBER_PLACEHOLDER`
+          - If PR: `gh pr diff NUMBER_PLACEHOLDER`
+          - Explore codebase as needed
+
+          ### 4. If Code Changes Needed → Create PR
+          ```bash
+          # Create branch
+          BRANCH="sisyphus/issue-NUMBER_PLACEHOLDER-$(date +%s)"
+          git checkout -b "$BRANCH"
+
+          # Make changes...
+
+          # Commit
+          git add -A
+          git commit -m "feat: description
+
+          Requested by @AUTHOR_PLACEHOLDER in #NUMBER_PLACEHOLDER
+
+          🤖 Generated with [OhMyOpenCode](https://github.com/code-yeongyu/oh-my-opencode)"
+
+          # Push and create PR
+          git push -u origin "$BRANCH"
+          gh pr create --title "feat: title" --body "## Summary
+          What was done
+
+          Closes #NUMBER_PLACEHOLDER
+
+          ---
+          🤖 Generated with [OhMyOpenCode](https://github.com/code-yeongyu/oh-my-opencode)" --base DEFAULT_BRANCH_PLACEHOLDER
+          ```
+
+          ### 5. Report Back (ALWAYS)
+          ```bash
+          gh issue comment NUMBER_PLACEHOLDER --body "## Done! ✅
+
+          Here's what I did:
+          - ...
+
+          PR: <link if created>"
+          ```
+
+          ## Rules
+          - EVERY response = GitHub comment (user sees nothing else)
+          - Code changes = PR (never push to main/master directly)
+          - Setup dev env first (bun install)
+          - Be concise but helpful
+
+          ## Git Config (Pre-configured)
           - user.name: sisyphus-dev-ai
-          - user.email: sisyphus-dev-ai@users.noreply.github.com"
+          - user.email: sisyphus-dev-ai@users.noreply.github.com
+          PROMPT_EOF
+
+          # Replace placeholders with actual values
+          sed -i "s/AUTHOR_PLACEHOLDER/${CONTEXT_AUTHOR}/g" /tmp/agent-prompt.md
+          sed -i "s/TYPE_PLACEHOLDER/${CONTEXT_TYPE}/g" /tmp/agent-prompt.md
+          sed -i "s/NUMBER_PLACEHOLDER/${CONTEXT_NUMBER}/g" /tmp/agent-prompt.md
+          sed -i "s|REPO_PLACEHOLDER|${REPO_NAME}|g" /tmp/agent-prompt.md
+          sed -i "s/DEFAULT_BRANCH_PLACEHOLDER/${DEFAULT_BRANCH}/g" /tmp/agent-prompt.md
+          sed -i "s/COMMENT_PLACEHOLDER/${CONTEXT_COMMENT}/g" /tmp/agent-prompt.md
           
-          opencode run "$PROMPT"
+          opencode run "$(cat /tmp/agent-prompt.md)"
 
       # Push changes (as sisyphus-dev-ai)
       - name: Push changes
