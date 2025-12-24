@@ -4,6 +4,7 @@ import TurndownService from "turndown"
 import * as cheerio from "cheerio"
 import type { Element } from "domhandler"
 import * as jq from "jq-wasm"
+import { MAX_RAW_SIZE, MAX_JQ_SIZE } from "./constants"
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -12,7 +13,7 @@ const turndown = new TurndownService({
 
 export function applyReadability(html: string, url: string): string {
   const dom = new JSDOM(html, { url })
-  const reader = new Readability(dom.window.document.cloneNode(true) as Document)
+  const reader = new Readability(dom.window.document)
   const article = reader.parse()
 
   if (!article?.content) {
@@ -23,6 +24,12 @@ export function applyReadability(html: string, url: string): string {
 }
 
 export function applyRaw(content: string): string {
+  if (content.length > MAX_RAW_SIZE) {
+    throw new Error(
+      `Content size (${(content.length / 1024).toFixed(1)}KB) exceeds raw strategy limit (${MAX_RAW_SIZE / 1024}KB). ` +
+        `Use 'readability', 'snapshot', or other compaction strategies for larger content.`
+    )
+  }
   return content
 }
 
@@ -303,6 +310,13 @@ export function applySelector(html: string, selector: string): string {
 }
 
 export async function applyJq(content: string, query: string): Promise<string> {
+  if (content.length > MAX_JQ_SIZE) {
+    return (
+      `Error: JSON size (${(content.length / 1024).toFixed(1)}KB) exceeds jq strategy limit (${MAX_JQ_SIZE / 1024}KB). ` +
+      `Consider using 'readability' or other strategies for large JSON responses.`
+    )
+  }
+
   try {
     JSON.parse(content)
   } catch {

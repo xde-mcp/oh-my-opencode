@@ -97,7 +97,17 @@ export const webfetch = tool({
   },
   execute: async (args) => {
     const strategy = args.strategy ?? DEFAULT_STRATEGY
-    const url = args.url.startsWith("http") ? args.url : `https://${args.url}`
+
+    let url: string
+    try {
+      const parsedUrl = new URL(args.url.startsWith("http") ? args.url : `https://${args.url}`)
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return `Error: Invalid URL protocol '${parsedUrl.protocol}'. Only http: and https: are supported.`
+      }
+      url = parsedUrl.href
+    } catch (error) {
+      return `Error: Invalid URL '${args.url}'. ${error instanceof Error ? error.message : String(error)}`
+    }
 
     try {
       const rawContent = await fetchWithTimeout(url, TIMEOUT_MS)
@@ -120,7 +130,7 @@ export const webfetch = tool({
       }
 
       const compactedSize = result.length
-      const reduction = ((1 - compactedSize / originalSize) * 100).toFixed(1)
+      const reduction = originalSize > 0 ? ((1 - compactedSize / originalSize) * 100).toFixed(1) : "0.0"
 
       const header = [
         `URL: ${url}`,
