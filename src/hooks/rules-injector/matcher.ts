@@ -20,19 +20,19 @@ export function shouldApplyRule(
     return { applies: true, reason: "alwaysApply" }
   }
 
-  const globs = metadata.globs
-  if (!globs) {
+  const patterns = metadata.paths ?? metadata.globs
+  if (!patterns) {
     return { applies: false }
   }
 
-  const patterns = Array.isArray(globs) ? globs : [globs]
-  if (patterns.length === 0) {
+  const patternArray = Array.isArray(patterns) ? patterns : [patterns]
+  if (patternArray.length === 0) {
     return { applies: false }
   }
 
   const relativePath = projectRoot ? relative(projectRoot, currentFilePath) : currentFilePath
 
-  for (const pattern of patterns) {
+  for (const pattern of patternArray) {
     if (picomatch.isMatch(relativePath, pattern, { dot: true, bash: true })) {
       return { applies: true, reason: `glob: ${pattern}` }
     }

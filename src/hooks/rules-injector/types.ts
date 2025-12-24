@@ -4,6 +4,9 @@
  */
 export interface RuleMetadata {
   description?: string;
+  /** Claude Code native field for file pattern matching */
+  paths?: string | string[];
+  /** Legacy oh-my-opencode field for file pattern matching (alias for paths) */
   globs?: string | string[];
   alwaysApply?: boolean;
 }
