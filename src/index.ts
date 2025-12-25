@@ -406,9 +406,8 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       const projectAgents = (pluginConfig.claude_code?.agents ?? true) ? loadProjectAgents() : {};
 
       const isSisyphusEnabled = pluginConfig.sisyphus_agent?.disabled !== true;
-      const builderEnabled = pluginConfig.sisyphus_agent?.builder_enabled ?? false;
+      const builderEnabled = pluginConfig.sisyphus_agent?.default_builder_enabled ?? false;
       const plannerEnabled = pluginConfig.sisyphus_agent?.planner_enabled ?? true;
-      const replaceBuild = pluginConfig.sisyphus_agent?.replace_build ?? true;
       const replacePlan = pluginConfig.sisyphus_agent?.replace_plan ?? true;
 
       if (isSisyphusEnabled && builtinAgents.Sisyphus) {
@@ -453,7 +452,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
         const filteredConfigAgents = config.agent ? 
           Object.fromEntries(
             Object.entries(config.agent).filter(([key]) => {
-              if (key === "build" && replaceBuild) return false;
+              if (key === "build") return false;
               if (key === "plan" && replacePlan) return false;
               return true;
             })
@@ -466,7 +465,7 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
           ...projectAgents,
           ...filteredConfigAgents,  // Filtered config agents (excludes build/plan if replaced)
           // Demote build/plan to subagent mode when replaced
-          ...(replaceBuild ? { build: { ...config.agent?.build, mode: "subagent" } } : {}),
+          build: { ...config.agent?.build, mode: "subagent" },
           ...(replacePlan ? { plan: { ...config.agent?.plan, mode: "subagent" } } : {}),
         };
       } else {
