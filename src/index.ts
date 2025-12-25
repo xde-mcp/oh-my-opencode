@@ -31,10 +31,7 @@ import {
   loadOpencodeGlobalCommands,
   loadOpencodeProjectCommands,
 } from "./features/claude-code-command-loader";
-import {
-  loadUserSkillsAsCommands,
-  loadProjectSkillsAsCommands,
-} from "./features/claude-code-skill-loader";
+
 import {
   loadUserAgents,
   loadProjectAgents,
@@ -518,19 +515,13 @@ const OhMyOpenCodePlugin: Plugin = async (ctx) => {
       const systemCommands = config.command ?? {};
       const projectCommands = (pluginConfig.claude_code?.commands ?? true) ? loadProjectCommands() : {};
       const opencodeProjectCommands = loadOpencodeProjectCommands();
-      const userSkills = (pluginConfig.claude_code?.skills ?? true) ? loadUserSkillsAsCommands() : {};
-      const projectSkills = (pluginConfig.claude_code?.skills ?? true) ? loadProjectSkillsAsCommands() : {};
-
       config.command = {
         ...userCommands,
-        ...userSkills,
         ...opencodeGlobalCommands,
         ...systemCommands,
         ...projectCommands,
-        ...projectSkills,
         ...opencodeProjectCommands,
         ...pluginComponents.commands,
-        ...pluginComponents.skills,
       };
     },
 
