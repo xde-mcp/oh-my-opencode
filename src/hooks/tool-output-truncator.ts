@@ -20,10 +20,11 @@ const TRUNCATABLE_TOOLS = [
 
 interface ToolOutputTruncatorOptions {
   experimental?: ExperimentalConfig
+  getModelLimit?: (providerID: string, modelID: string) => number | undefined
 }
 
 export function createToolOutputTruncatorHook(ctx: PluginInput, options?: ToolOutputTruncatorOptions) {
-  const truncator = createDynamicTruncator(ctx)
+  const truncator = createDynamicTruncator(ctx, options?.getModelLimit)
   const truncateAll = options?.experimental?.truncate_all_tool_outputs ?? true
 
   const toolExecuteAfter = async (

@@ -1,8 +1,12 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 
 const ANTHROPIC_ACTUAL_LIMIT = 200_000
+const CLAUDE_FALLBACK_LIMIT = 200_000
+const DEFAULT_CONTEXT_WINDOW = 128_000
 const CHARS_PER_TOKEN_ESTIMATE = 4
 const DEFAULT_TARGET_MAX_TOKENS = 50_000
+
+type GetModelLimitFn = (providerID: string, modelID: string) => number | undefined
 
 interface AssistantMessageInfo {
   role: "assistant"
@@ -16,6 +20,10 @@ interface AssistantMessageInfo {
 
 interface MessageWrapper {
   info: { role: string } & Partial<AssistantMessageInfo>
+  model?: {
+    providerID?: string
+    modelID?: string
+  }
 }
 
 export interface TruncationResult {
@@ -95,8 +103,9 @@ export function truncateToTokenLimit(
 
 export async function getContextWindowUsage(
   ctx: PluginInput,
-  sessionID: string
-): Promise<{ usedTokens: number; remainingTokens: number; usagePercentage: number } | null> {
+  sessionID: string,
+  getModelLimit?: GetModelLimitFn
+): Promise<{ usedTokens: number; remainingTokens: number; usagePercentage: number; contextLimit: number } | null> {
   try {
     const response = await ctx.client.session.messages({
       path: { id: sessionID },
@@ -112,13 +121,46 @@ export async function getContextWindowUsage(
 
     const lastAssistant = assistantMessages[assistantMessages.length - 1]
     const lastTokens = lastAssistant.tokens
-    const usedTokens = (lastTokens?.input ?? 0) + (lastTokens?.cache?.read ?? 0)
-    const remainingTokens = ANTHROPIC_ACTUAL_LIMIT - usedTokens
+    
+    const hasAnthropicTokenMetrics = lastTokens?.input !== undefined
+    if (hasAnthropicTokenMetrics) {
+      const usedTokens = (lastTokens.input ?? 0) + (lastTokens.cache?.read ?? 0)
+      const remainingTokens = ANTHROPIC_ACTUAL_LIMIT - usedTokens
+
+      return {
+        usedTokens,
+        remainingTokens,
+        usagePercentage: usedTokens / ANTHROPIC_ACTUAL_LIMIT,
+        contextLimit: ANTHROPIC_ACTUAL_LIMIT,
+      }
+    }
+
+    if (!getModelLimit) return null
+
+    const messageWithModel = messages
+      .slice()
+      .reverse()
+      .find((m) => m.model?.providerID && m.model?.modelID)
+
+    if (!messageWithModel?.model?.providerID || !messageWithModel?.model?.modelID) {
+      return null
+    }
+
+    const { providerID, modelID } = messageWithModel.model
+    const contextLimitFromProvider = getModelLimit(providerID, modelID)
+    const isClaudeModel = providerID === "anthropic"
+    const contextLimit = contextLimitFromProvider ?? 
+      (isClaudeModel ? CLAUDE_FALLBACK_LIMIT : DEFAULT_CONTEXT_WINDOW)
+
+    const CONSERVATIVE_USAGE_ESTIMATE = 0.5
+    const estimatedUsedTokens = Math.floor(contextLimit * CONSERVATIVE_USAGE_ESTIMATE)
+    const remainingTokens = contextLimit - estimatedUsedTokens
 
     return {
-      usedTokens,
+      usedTokens: estimatedUsedTokens,
       remainingTokens,
-      usagePercentage: usedTokens / ANTHROPIC_ACTUAL_LIMIT,
+      usagePercentage: CONSERVATIVE_USAGE_ESTIMATE,
+      contextLimit,
     }
   } catch {
     return null
@@ -129,11 +171,12 @@ export async function dynamicTruncate(
   ctx: PluginInput,
   sessionID: string,
   output: string,
-  options: TruncationOptions = {}
+  options: TruncationOptions = {},
+  getModelLimit?: GetModelLimitFn
 ): Promise<TruncationResult> {
   const { targetMaxTokens = DEFAULT_TARGET_MAX_TOKENS, preserveHeaderLines = 3 } = options
 
-  const usage = await getContextWindowUsage(ctx, sessionID)
+  const usage = await getContextWindowUsage(ctx, sessionID, getModelLimit)
 
   if (!usage) {
     return { result: output, truncated: false }
@@ -151,12 +194,12 @@ export async function dynamicTruncate(
   return truncateToTokenLimit(output, maxOutputTokens, preserveHeaderLines)
 }
 
-export function createDynamicTruncator(ctx: PluginInput) {
+export function createDynamicTruncator(ctx: PluginInput, getModelLimit?: GetModelLimitFn) {
   return {
     truncate: (sessionID: string, output: string, options?: TruncationOptions) =>
-      dynamicTruncate(ctx, sessionID, output, options),
+      dynamicTruncate(ctx, sessionID, output, options, getModelLimit),
 
-    getUsage: (sessionID: string) => getContextWindowUsage(ctx, sessionID),
+    getUsage: (sessionID: string) => getContextWindowUsage(ctx, sessionID, getModelLimit),
 
     truncateSync: (output: string, maxTokens: number, preserveHeaderLines?: number) =>
       truncateToTokenLimit(output, maxTokens, preserveHeaderLines),
