@@ -404,8 +404,8 @@ gh repo star code-yeongyu/oh-my-opencode
 
 - **Sisyphus** (`anthropic/claude-opus-4-5`)：**默认 Agent。** OpenCode 专属的强力 AI 编排器。指挥专业子 Agent 搞定复杂任务。主打后台任务委派和 Todo 驱动。用 Claude Opus 4.5 加上扩展思考（32k token 预算），智商拉满。
 - **oracle** (`openai/gpt-5.2`)：架构师、代码审查员、战略家。GPT-5.2 的逻辑推理和深度分析能力不是盖的。致敬 AmpCode。
-- **librarian** (`anthropic/claude-sonnet-4-5`)：多仓库分析、查文档、找示例。Claude Sonnet 4.5 深入理解代码库，GitHub 调研，给出的答案都有据可查。致敬 AmpCode。
-- **explore** (`opencode/grok-code`)：极速代码库扫描、模式匹配。Claude Code 用 Haiku，我们用 Grok——免费、飞快、扫文件够用了。致敬 Claude Code。
+- **librarian** (`anthropic/claude-sonnet-4-5` 或 `google/gemini-3-flash`)：多仓库分析、查文档、找示例。配置 Antigravity 认证时使用 Gemini 3 Flash，否则使用 Claude Sonnet 4.5 深入理解代码库，GitHub 调研，给出的答案都有据可查。致敬 AmpCode。
+- **explore** (`opencode/grok-code`、`google/gemini-3-flash` 或 `anthropic/claude-haiku-4-5`)：极速代码库扫描、模式匹配。配置 Antigravity 认证时使用 Gemini 3 Flash，Claude max20 可用时使用 Haiku，否则用 Grok。致敬 Claude Code。
 - **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`)：设计师出身的程序员。UI 做得那是真漂亮。Gemini 写这种创意美观的代码是一绝。
 - **document-writer** (`google/gemini-3-pro-preview`)：技术写作专家。Gemini 文笔好，写出来的东西读着顺畅。
 - **multimodal-looker** (`google/gemini-3-flash`)：视觉内容专家。PDF、图片、图表，看一眼就知道里头有啥。
@@ -857,7 +857,7 @@ Oh My OpenCode 送你重构工具（重命名、代码操作）。
 | `aggressive_truncation`     | `false` | 超出 token 限制时，激进地截断工具输出以适应限制。比默认截断更激进。不够的话会回退到摘要/恢复。                                                     |
 | `auto_resume`               | `false` | 从 thinking block 错误或 thinking disabled violation 成功恢复后，自动恢复会话。提取最后一条用户消息继续执行。                                     |
 | `truncate_all_tool_outputs` | `true`  | 为防止提示过长，根据上下文窗口使用情况动态截断所有工具输出。如需完整工具输出，设置为 `false` 禁用此功能。                                           |
-| `dcp_on_compaction_failure` | `false` | 启用后，DCP（动态上下文剪枝）仅在压缩（摘要）失败后运行，然后重试压缩。平时 DCP 不会运行。当达到 token 限制时需要更智能的恢复请启用此选项。                   |
+| `dcp_for_compaction`        | `false` | 启用后，当发生 token 限制错误时，DCP（动态上下文剪枝）首先运行，然后立即执行压缩。DCP 清理不必要的上下文后，压缩立即进行。当达到 token 限制时需要更智能的恢复请启用此选项。 |
 
 **警告**：这些功能是实验性的，可能会导致意外行为。只有在理解其影响的情况下才启用。
 

@@ -21,6 +21,8 @@ import {
 } from "../session-recovery/storage";
 import { log } from "../../shared/logger";
 
+const PLACEHOLDER_TEXT = "[user interrupted]";
+
 type Client = {
   session: {
     messages: (opts: {
@@ -101,6 +103,36 @@ function getOrCreateDcpState(
     autoCompactState.dcpStateBySession.set(sessionID, state);
   }
   return state;
+}
+
+function sanitizeEmptyMessagesBeforeSummarize(sessionID: string): number {
+  const emptyMessageIds = findEmptyMessages(sessionID);
+  if (emptyMessageIds.length === 0) {
+    return 0;
+  }
+
+  let fixedCount = 0;
+  for (const messageID of emptyMessageIds) {
+    const replaced = replaceEmptyTextParts(messageID, PLACEHOLDER_TEXT);
+    if (replaced) {
+      fixedCount++;
+    } else {
+      const injected = injectTextPart(sessionID, messageID, PLACEHOLDER_TEXT);
+      if (injected) {
+        fixedCount++;
+      }
+    }
+  }
+
+  if (fixedCount > 0) {
+    log("[auto-compact] pre-summarize sanitization fixed empty messages", {
+      sessionID,
+      fixedCount,
+      totalEmpty: emptyMessageIds.length,
+    });
+  }
+
+  return fixedCount;
 }
 
 async function getLastMessagePair(
@@ -326,6 +358,104 @@ export async function executeCompact(
     const errorData = autoCompactState.errorDataBySession.get(sessionID);
     const truncateState = getOrCreateTruncateState(autoCompactState, sessionID);
 
+    // DCP FIRST - run before any other recovery attempts when token limit exceeded
+    const dcpState = getOrCreateDcpState(autoCompactState, sessionID);
+    if (
+      experimental?.dcp_for_compaction &&
+      !dcpState.attempted &&
+      errorData?.currentTokens &&
+      errorData?.maxTokens &&
+      errorData.currentTokens > errorData.maxTokens
+    ) {
+      dcpState.attempted = true;
+      log("[auto-compact] DCP triggered FIRST on token limit error", {
+        sessionID,
+        currentTokens: errorData.currentTokens,
+        maxTokens: errorData.maxTokens,
+      });
+
+      const dcpConfig = experimental.dynamic_context_pruning ?? {
+        enabled: true,
+        notification: "detailed" as const,
+        protected_tools: ["task", "todowrite", "todoread", "lsp_rename", "lsp_code_action_resolve"],
+      };
+
+      try {
+        const pruningResult = await executeDynamicContextPruning(
+          sessionID,
+          dcpConfig,
+          client
+        );
+
+        if (pruningResult.itemsPruned > 0) {
+          dcpState.itemsPruned = pruningResult.itemsPruned;
+          log("[auto-compact] DCP successful, proceeding to compaction", {
+            itemsPruned: pruningResult.itemsPruned,
+            tokensSaved: pruningResult.totalTokensSaved,
+          });
+
+          await (client as Client).tui
+            .showToast({
+              body: {
+                title: "Dynamic Context Pruning",
+                message: `Pruned ${pruningResult.itemsPruned} items (~${Math.round(pruningResult.totalTokensSaved / 1000)}k tokens). Running compaction...`,
+                variant: "success",
+                duration: 3000,
+              },
+            })
+            .catch(() => {});
+
+          // After DCP, immediately try summarize
+          const providerID = msg.providerID as string | undefined;
+          const modelID = msg.modelID as string | undefined;
+
+          if (providerID && modelID) {
+            try {
+              sanitizeEmptyMessagesBeforeSummarize(sessionID);
+
+              await (client as Client).tui
+                .showToast({
+                  body: {
+                    title: "Auto Compact",
+                    message: "Summarizing session after DCP...",
+                    variant: "warning",
+                    duration: 3000,
+                  },
+                })
+                .catch(() => {});
+
+              await (client as Client).session.summarize({
+                path: { id: sessionID },
+                body: { providerID, modelID },
+                query: { directory },
+              });
+
+              clearSessionState(autoCompactState, sessionID);
+
+              setTimeout(async () => {
+                try {
+                  await (client as Client).session.prompt_async({
+                    path: { sessionID },
+                    body: { parts: [{ type: "text", text: "Continue" }] },
+                    query: { directory },
+                  });
+                } catch {}
+              }, 500);
+              return;
+            } catch (summarizeError) {
+              log("[auto-compact] summarize after DCP failed, continuing recovery", {
+                error: String(summarizeError),
+              });
+            }
+          }
+        } else {
+          log("[auto-compact] DCP did not prune any items", { sessionID });
+        }
+      } catch (error) {
+        log("[auto-compact] DCP failed", { error: String(error) });
+      }
+    }
+
     if (
       experimental?.aggressive_truncation &&
       errorData?.currentTokens &&
@@ -523,6 +653,8 @@ export async function executeCompact(
 
       if (providerID && modelID) {
         try {
+          sanitizeEmptyMessagesBeforeSummarize(sessionID);
+
           await (client as Client).tui
             .showToast({
               body: {
@@ -579,67 +711,6 @@ export async function executeCompact(
             },
           })
           .catch(() => {});
-      }
-    }
-
-    // Try DCP after summarize fails - only once per compaction cycle
-    const dcpState = getOrCreateDcpState(autoCompactState, sessionID);
-    if (experimental?.dcp_on_compaction_failure && !dcpState.attempted) {
-      dcpState.attempted = true;
-      log("[auto-compact] attempting DCP after summarize failed", { sessionID });
-      
-      const dcpConfig = experimental.dynamic_context_pruning ?? {
-        enabled: true,
-        notification: "detailed" as const,
-        protected_tools: ["task", "todowrite", "todoread", "lsp_rename", "lsp_code_action_resolve"],
-      };
-      
-      try {
-        const pruningResult = await executeDynamicContextPruning(
-          sessionID,
-          dcpConfig,
-          client
-        );
-        
-        if (pruningResult.itemsPruned > 0) {
-          dcpState.itemsPruned = pruningResult.itemsPruned;
-          log("[auto-compact] DCP successful, retrying compaction", {
-            itemsPruned: pruningResult.itemsPruned,
-            tokensSaved: pruningResult.totalTokensSaved,
-          });
-          
-          await (client as Client).tui
-            .showToast({
-              body: {
-                title: "Dynamic Context Pruning",
-                message: `Pruned ${pruningResult.itemsPruned} items (~${Math.round(pruningResult.totalTokensSaved / 1000)}k tokens). Retrying compaction...`,
-                variant: "success",
-                duration: 3000,
-              },
-            })
-            .catch(() => {});
-          
-          // Reset retry state to allow compaction to retry summarize
-          retryState.attempt = 0;
-          
-          setTimeout(() => {
-            executeCompact(
-              sessionID,
-              msg,
-              autoCompactState,
-              client,
-              directory,
-              experimental,
-            );
-          }, 500);
-          return;
-        } else {
-          log("[auto-compact] DCP did not prune any items, continuing to revert", { sessionID });
-        }
-      } catch (error) {
-        log("[auto-compact] DCP failed, continuing to revert", {
-          error: String(error),
-        });
       }
     }
 

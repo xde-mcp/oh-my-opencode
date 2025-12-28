@@ -465,8 +465,8 @@ To remove oh-my-opencode:
 
 - **Sisyphus** (`anthropic/claude-opus-4-5`): **The default agent.** A powerful AI orchestrator for OpenCode. Plans, delegates, and executes complex tasks using specialized subagents with aggressive parallel execution. Emphasizes background task delegation and todo-driven workflow. Uses Claude Opus 4.5 with extended thinking (32k budget) for maximum reasoning capability.
 - **oracle** (`openai/gpt-5.2`): Architecture, code review, strategy. Uses GPT-5.2 for its stellar logical reasoning and deep analysis. Inspired by AmpCode.
-- **librarian** (`anthropic/claude-sonnet-4-5`): Multi-repo analysis, doc lookup, implementation examples. Uses Claude Sonnet 4.5 for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
-- **explore** (`opencode/grok-code`): Fast codebase exploration and pattern matching. Claude Code uses Haiku; we use Grok—it's free, blazing fast, and plenty smart for file traversal. Inspired by Claude Code.
+- **librarian** (`anthropic/claude-sonnet-4-5` or `google/gemini-3-flash`): Multi-repo analysis, doc lookup, implementation examples. Uses Gemini 3 Flash when Antigravity auth is configured, otherwise Claude Sonnet 4.5 for deep codebase understanding and GitHub research with evidence-based answers. Inspired by AmpCode.
+- **explore** (`opencode/grok-code`, `google/gemini-3-flash`, or `anthropic/claude-haiku-4-5`): Fast codebase exploration and pattern matching. Uses Gemini 3 Flash when Antigravity auth is configured, Haiku when Claude max20 is available, otherwise Grok. Inspired by Claude Code.
 - **frontend-ui-ux-engineer** (`google/gemini-3-pro-high`): A designer turned developer. Builds gorgeous UIs. Gemini excels at creative, beautiful UI code.
 - **document-writer** (`google/gemini-3-flash`): Technical writing expert. Gemini is a wordsmith—writes prose that flows.
 - **multimodal-looker** (`google/gemini-3-flash`): Visual content specialist. Analyzes PDFs, images, diagrams to extract information.
@@ -953,7 +953,7 @@ Opt-in experimental features that may change or be removed in future versions. U
 | `aggressive_truncation`     | `false` | When token limit is exceeded, aggressively truncates tool outputs to fit within limits. More aggressive than the default truncation behavior. Falls back to summarize/revert if insufficient. |
 | `auto_resume`               | `false` | Automatically resumes session after successful recovery from thinking block errors or thinking disabled violations. Extracts the last user message and continues.                            |
 | `truncate_all_tool_outputs` | `true`  | Dynamically truncates ALL tool outputs based on context window usage to prevent prompts from becoming too long. Disable by setting to `false` if you need full tool outputs.                 |
-| `dcp_on_compaction_failure` | `false` | When enabled, Dynamic Context Pruning (DCP) runs only after compaction (summarize) fails, then retries compaction. DCP does NOT run during normal operations. Enable this for smarter recovery when hitting token limits. |
+| `dcp_for_compaction`        | `false` | When enabled, Dynamic Context Pruning (DCP) runs FIRST when token limit errors occur, before attempting compaction. DCP prunes redundant context, then compaction runs immediately. Enable this for smarter recovery when hitting token limits. |
 
 **Warning**: These features are experimental and may cause unexpected behavior. Enable only if you understand the implications.
 

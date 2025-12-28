@@ -393,8 +393,8 @@ gh repo star code-yeongyu/oh-my-opencode
 
 - **Sisyphus** (`anthropic/claude-opus-4-5`): **기본 에이전트입니다.** OpenCode를 위한 강력한 AI 오케스트레이터입니다. 전문 서브에이전트를 활용하여 복잡한 작업을 계획, 위임, 실행합니다. 백그라운드 태스크 위임과 todo 기반 워크플로우를 강조합니다. 최대 추론 능력을 위해 Claude Opus 4.5와 확장된 사고(32k 버짓)를 사용합니다.
 - **oracle** (`openai/gpt-5.2`): 아키텍처, 코드 리뷰, 전략 수립을 위한 전문가 조언자. GPT-5.2의 뛰어난 논리적 추론과 깊은 분석 능력을 활용합니다. AmpCode 에서 영감을 받았습니다.
-- **librarian** (`anthropic/claude-sonnet-4-5`): 멀티 레포 분석, 문서 조회, 구현 예제 담당. Claude Sonnet 4.5를 사용하여 깊은 코드베이스 이해와 GitHub 조사, 근거 기반의 답변을 제공합니다. AmpCode 에서 영감을 받았습니다.
-- **explore** (`opencode/grok-code`): 빠른 코드베이스 탐색, 파일 패턴 매칭. Claude Code는 Haiku를 쓰지만, 우리는 Grok을 씁니다. 현재 무료이고, 극도로 빠르며, 파일 탐색 작업에 충분한 지능을 갖췄기 때문입니다. Claude Code 에서 영감을 받았습니다.
+- **librarian** (`anthropic/claude-sonnet-4-5` 또는 `google/gemini-3-flash`): 멀티 레포 분석, 문서 조회, 구현 예제 담당. Antigravity 인증이 설정된 경우 Gemini 3 Flash를 사용하고, 그렇지 않으면 Claude Sonnet 4.5를 사용하여 깊은 코드베이스 이해와 GitHub 조사, 근거 기반의 답변을 제공합니다. AmpCode 에서 영감을 받았습니다.
+- **explore** (`opencode/grok-code`, `google/gemini-3-flash`, 또는 `anthropic/claude-haiku-4-5`): 빠른 코드베이스 탐색, 파일 패턴 매칭. Antigravity 인증이 설정된 경우 Gemini 3 Flash를 사용하고, Claude max20이 있으면 Haiku를 사용하며, 그 외에는 Grok을 씁니다. Claude Code 에서 영감을 받았습니다.
 - **frontend-ui-ux-engineer** (`google/gemini-3-pro-preview`): 개발자로 전향한 디자이너라는 설정을 갖고 있습니다. 멋진 UI를 만듭니다. 아름답고 창의적인 UI 코드를 생성하는 데 탁월한 Gemini를 사용합니다.
 - **document-writer** (`google/gemini-3-pro-preview`): 기술 문서 전문가라는 설정을 갖고 있습니다. Gemini 는 문학가입니다. 글을 기가막히게 씁니다.
 - **multimodal-looker** (`google/gemini-3-flash`): 시각적 콘텐츠 해석을 위한 전문 에이전트. PDF, 이미지, 다이어그램을 분석하여 정보를 추출합니다.
@@ -851,7 +851,7 @@ OpenCode 에서 지원하는 모든 LSP 구성 및 커스텀 설정 (opencode.js
 | `aggressive_truncation`     | `false` | 토큰 제한을 초과하면 도구 출력을 공격적으로 잘라내어 제한 내에 맞춥니다. 기본 truncation보다 더 공격적입니다. 부족하면 요약/복구로 fallback합니다.                      |
 | `auto_resume`               | `false` | thinking block 에러나 thinking disabled violation으로부터 성공적으로 복구한 후 자동으로 세션을 재개합니다. 마지막 사용자 메시지를 추출하여 계속합니다.                |
 | `truncate_all_tool_outputs` | `true`  | 프롬프트가 너무 길어지는 것을 방지하기 위해 컨텍스트 윈도우 사용량에 따라 모든 도구 출력을 동적으로 잘라냅니다. 전체 도구 출력이 필요한 경우 `false`로 설정하여 비활성화하세요. |
-| `dcp_on_compaction_failure` | `false` | 활성화하면, DCP(Dynamic Context Pruning)가 compaction(요약) 실패 후에만 실행되고 compaction을 재시도합니다. DCP는 평소에는 실행되지 않습니다. 토큰 제한에 도달했을 때 더 스마트한 복구를 원하면 활성화하세요. |
+| `dcp_for_compaction`        | `false` | 활성화하면, 토큰 제한 에러 발생 시 DCP(Dynamic Context Pruning)가 가장 먼저 실행되고, 그 다음 compaction이 실행됩니다. DCP가 불필요한 컨텍스트를 정리한 후 바로 compaction이 진행됩니다. 토큰 제한에 도달했을 때 더 스마트한 복구를 원하면 활성화하세요. |
 
 **경고**: 이 기능들은 실험적이며 예상치 못한 동작을 유발할 수 있습니다. 의미를 이해한 경우에만 활성화하세요.
 
