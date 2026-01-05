@@ -202,6 +202,9 @@ OpenCode 가 낭만이 사라진것같은 오늘날의 시대에, 당신에게 �
 ### 인간인 당신을 위한 설치 가이드
 
 귀찮은 작업은 LLM Agent 에게 맡기세요. 이 링크를 복사해서 넣어 설치하고 구성해달라고 부탁하세요.
+```
+Install and configure by following the instructions here https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/refs/heads/master/README.md
+```
 
 ### LLM Agent 를 위한 설치 가이드
 
